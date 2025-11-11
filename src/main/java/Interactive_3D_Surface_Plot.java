@@ -660,9 +660,30 @@ public class Interactive_3D_Surface_Plot implements PlugIn, MouseListener, Mouse
     		int screenWidth = screenSize.width;
     		int screenHeight = screenSize.height;	
         	
-        	Insets ins = frame.getInsets();
-        	xloc = (screenWidth-windowWidth-ins.left-ins.right -  70)/2;
-        	yloc = (screenHeight-windowHeight-ins.bottom-ins.top - 75)/2;
+        	Insets ins = new Insets(0, 0, 0, 0); // Use default insets if frame not yet created
+        	if (frame != null) {
+            	ins = frame.getInsets();
+        	}
+			// Ensure window fits on screen
+			int maxHeight = screenHeight - 100; // Leave space for taskbar
+			int maxWidth = screenWidth - 70;
+			
+			if (windowHeight > maxHeight) {
+				windowHeight = maxHeight;
+				startWindowHeight = windowHeight;
+			}
+			if (windowWidth > maxWidth) {
+				windowWidth = maxWidth;
+				startWindowWidth = windowWidth;
+			}
+
+			xloc = (screenWidth - windowWidth - ins.left - ins.right - 70) / 2;
+			yloc = (screenHeight - windowHeight - ins.bottom - ins.top - 75) / 2;
+			
+			// Ensure location is on screen
+			xloc = Math.max(0, xloc);
+			yloc = Math.max(0, yloc);
+        
         	light = 0.2;
         	perspective = 0.1;
         	grid = 256;
@@ -685,6 +706,12 @@ public class Interactive_3D_Surface_Plot implements PlugIn, MouseListener, Mouse
         else {
         	xloc = (int) Prefs.get("ISP3D.xloc", 100);
         	yloc = (int) Prefs.get("ISP3D.yloc", 50);
+			// Validate location is on screen
+			Toolkit toolkit = Toolkit.getDefaultToolkit();
+			Dimension screenSize = toolkit.getScreenSize();
+			xloc = Math.max(0, Math.min(xloc, screenSize.width - 200));
+			yloc = Math.max(0, Math.min(yloc, screenSize.height - 200));
+
         	light = Prefs.get("ISP3D.light", 0.2);
         	perspective = Prefs.get("ISP3D.perspective", 0);
         	grid = (int) Prefs.get("ISP3D.grid", 256);
@@ -1332,18 +1359,28 @@ public class Interactive_3D_Surface_Plot implements PlugIn, MouseListener, Mouse
 		
 		// add component/resize listener
 		frame.addComponentListener(new ComponentAdapter(){
+			private boolean isResizing = false;
 			
 			public void componentResized(ComponentEvent event) {
-				Insets insetsFrame = frame.getInsets();				
-				windowWidth = frame.getWidth() - insetsFrame.left - insetsFrame.right - settingsPanel2.getWidth();
-				windowHeight = frame.getHeight() - insetsFrame.bottom - insetsFrame.top - settingsPanel1.getHeight();
-				if (windowHeight>0 && windowWidth > 0)
-					resizeImagePanel(windowWidth, windowHeight);
-				frame.pack();				
+				if (isResizing) return; // Prevent reentrant calls
+				
+				isResizing = true;
+				try {
+					Insets insetsFrame = frame.getInsets();				
+					int newWindowWidth = frame.getWidth() - insetsFrame.left - insetsFrame.right - settingsPanel2.getWidth();
+					int newWindowHeight = frame.getHeight() - insetsFrame.bottom - insetsFrame.top - settingsPanel1.getHeight();
+					
+					// Ensure dimensions are positive and reasonable
+					if (newWindowHeight > 0 && newWindowWidth > 0) {
+						windowWidth = newWindowWidth;
+						windowHeight = newWindowHeight;
+						resizeImagePanel(windowWidth, windowHeight);
+					}
+				} finally {
+					isResizing = false;
+				}
 			}
-		});		
-		
-	}
+		});	}
 	
 	
 	private JPanel createMainPanel(){
