@@ -60,6 +60,8 @@ import java.awt.event.KeyEvent;
 import java.awt.event.MouseEvent;
 import java.awt.event.MouseListener;
 import java.awt.event.MouseMotionListener;
+import java.awt.event.MouseWheelEvent;
+import java.awt.event.MouseWheelListener;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 import java.awt.image.BufferedImage;
@@ -93,7 +95,13 @@ import javax.swing.event.ChangeListener;
  *
  * (C) Author:  Kai Uwe Barthel: barthel (at) htw-berlin.de 
  *
- * * Version 2.4.1		
+ * Version 3.1.0		
+ * 	        2025 November 16
+ *          - Added feature to zoom in with mouse wheel
+ *          - improved font handling across different JRE and OSs
+ *          - fixed a bug caused the dialog lower edge being off-screen on windows
+ 
+ * Version 2.4.1		
  * 	        2015 December 10
  *          - Added feature to use a visibility mask image for rendering. (credits to gokuld) 
  *
@@ -176,7 +184,7 @@ import javax.swing.event.ChangeListener;
 
 public class Interactive_3D_Surface_Plot implements PlugIn, MouseListener, MouseMotionListener, ItemListener{
 	
-	private final String version = " v3.0.1 ";     
+	private final String version = " v3.1.0 ";     
 	
 	// constants
 	private final int DOTS = 0;
@@ -292,6 +300,7 @@ public class Interactive_3D_Surface_Plot implements PlugIn, MouseListener, Mouse
 	private double zAspectRatio = 1;
 	
 	private double scaleSlider = 1;
+	private int baseFontSize = 8;
 
 	private double minZ;
 	private double maxZ;
@@ -312,6 +321,18 @@ public class Interactive_3D_Surface_Plot implements PlugIn, MouseListener, Mouse
 	private double rotationX = 65;
 	private double rotationZ = 39;
 	
+	// Screen resolution for DPI-aware font sizing
+	private int screenResolution = Toolkit.getDefaultToolkit().getScreenResolution();
+	
+	/**
+	 * Calculate font size based on screen resolution for cross-platform compatibility
+	 * @param baseFontSize The base font size at 72 DPI
+	 * @return Scaled font size appropriate for the current screen resolution
+	 */
+	private int getScaledFontSize(int baseFontSize) {
+		return (int)Math.round(baseFontSize * screenResolution / 72.0);
+	}
+	
 	private boolean doReset = false;
 	
 	private int minSlider = 0;
@@ -329,23 +350,27 @@ public class Interactive_3D_Surface_Plot implements PlugIn, MouseListener, Mouse
 	public static void main(String args[]) {
 		Interactive_3D_Surface_Plot sp = new Interactive_3D_Surface_Plot();
 		
-		new ImageJ(); // !!!
-
-		IJ.open("/Users/barthel/Pictures/Beispielbilder/calibration.tif");
+		//new ImageJ(); // !!!
+	
+		//IJ.open("/Users/barthel/Pictures/Beispielbilder/calibration.tif");
 		//IJ.open("/Users/barthel/Pictures/Beispielbilder/plot2.tif");
 		//IJ.open("/Users/barthel/Pictures/Beispielbilder/baboon.jpg");
 		
 		//IJ.open("/Users/barthel/Pictures/Beispielbilder/InteractivePlot-32bit-grey.tif");
 		//IJ.open("/Users/barthel/Pictures/Beispielbilder/InteractivePlot-32bit-jet.tif");
 				
-//		IJ.run("Set Scale...", "distance=1.001 known=100 pixel=1 unit=µm");
-//		//IJ.run("Set Scale...", "distance=2.2 known=5 pixel=1 unit=µm");
-//		IJ.run("Set Scale...", "distance=12 known=100 pixel=1 unit=µm");
-//		//IJ.run("Set Scale...", "distance=30 known=0.5 pixel=1 unit=µm");
-//		//IJ.run("Fire");
-//		//IJ.makeRectangle(80, 80, 4, 5);
+		//IJ.run("Set Scale...", "distance=1.001 known=100 pixel=1 unit=µm");
+		//IJ.run("Set Scale...", "distance=2.2 known=5 pixel=1 unit=µm");
+		//IJ.run("Set Scale...", "distance=12 known=100 pixel=1 unit=µm");
+		//IJ.run("Set Scale...", "distance=30 known=0.5 pixel=1 unit=µm");
+		//IJ.run("Fire");
+		//IJ.makeRectangle(80, 80, 4, 5);
+		//sp.image = IJ.getImage();
 
-		sp.image = IJ.getImage();
+		// If no image is available, use the sample image instead
+		if (sp.image == null) {
+			sp.generateSampleImage();
+		}
 
 //		// ROI Test
 //		int[] xpoints = new int[]{98,163,243,206,147,150};
@@ -376,8 +401,8 @@ public class Interactive_3D_Surface_Plot implements PlugIn, MouseListener, Mouse
 //		}
 		
 
-		sp.run("");	
-		//sp.runApplication("Example Plot");
+		//sp.run("");	
+		sp.runApplication("Example Plot");
 	}
 	
 	private void generateSampleImage() {
@@ -423,7 +448,7 @@ public class Interactive_3D_Surface_Plot implements PlugIn, MouseListener, Mouse
 		bufferedImage = op.filter(bufferedImage, null);
 		g2D = bufferedImage.createGraphics();
 		g2D.setColor(new Color(0x3300FF));
-		Font font = new Font("Sans", Font.BOLD, 60);
+		Font font = new Font(Font.SANS_SERIF, Font.BOLD, getScaledFontSize(60));
 		g2D.setFont(font);
 		g2D.drawString("ImageJ", 20, 220); 
 		
@@ -1415,6 +1440,32 @@ public class Interactive_3D_Surface_Plot implements PlugIn, MouseListener, Mouse
 
 		imageRegion.addMouseListener(this);
 		imageRegion.addMouseMotionListener(this);
+		
+		// Add mouse wheel listener for scale control
+		imageRegion.addMouseWheelListener(new MouseWheelListener() {
+			@Override
+			public void mouseWheelMoved(MouseWheelEvent e) {
+				int notches = e.getWheelRotation();
+				int currentValue = sliderScale.getValue();
+				int increment = 5; // Adjust sensitivity here
+				
+				// Scroll down (notches > 0) decreases scale, scroll up increases
+				int newValue = currentValue - (notches * increment);
+				
+				// Clamp to slider bounds
+				newValue = Math.max(sliderScale.getMinimum(), Math.min(sliderScale.getMaximum(), newValue));
+				
+				if (newValue != currentValue) {
+					sliderScale.setValue(newValue);
+					scaleSlider = newValue / 100.;
+					String str = "Scale: " + (int)(scaleSlider*100)/100.;
+					setSliderTitle(sliderScale, Color.black, str);
+					double scale = scaleInit * scaleWindow * scaleSlider;
+					jRenderer3D.setTransformScale(scale);
+					renderAndUpdateDisplay();
+				}
+			}
+		});
 
 		imageRegion.addKeyListener ( 			
 				new KeyAdapter() { 
@@ -1892,17 +1943,17 @@ public class Interactive_3D_Surface_Plot implements PlugIn, MouseListener, Mouse
 		miniPanel.setLayout(new GridLayout(2,1,0,3));
 		
 		checkIsEqualxyzRatio = new JCheckBox("z = xy Ratio");
-		checkIsEqualxyzRatio.setFont(new Font("Sans", Font.PLAIN, 11));
+		checkIsEqualxyzRatio.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, getScaledFontSize(baseFontSize)));
 		checkIsEqualxyzRatio.setSelected(isEqualxyzRatio);
 		checkIsEqualxyzRatio.addItemListener (this);
 		
 		checkInverse = new JCheckBox("Invert");
-		checkInverse.setFont(new Font("Sans", Font.PLAIN, 11));
+		checkInverse.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, getScaledFontSize(baseFontSize)));
 		checkInverse.setSelected(invertZ);
 		checkInverse.addItemListener (this);
 		
 		JButton buttonBackgroundColor = new JButton("Background");
-		buttonBackgroundColor.setFont(new Font("Sans", Font.PLAIN, 11));
+		buttonBackgroundColor.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, getScaledFontSize(baseFontSize)));
 		buttonBackgroundColor.addActionListener(new ActionListener() {
 			public void actionPerformed(ActionEvent e) {
 				bgColor = JColorChooser.showDialog(null, "Choose background color", null);
@@ -1914,7 +1965,7 @@ public class Interactive_3D_Surface_Plot implements PlugIn, MouseListener, Mouse
 		});
 		
 		JButton buttonLineColor = new JButton("Line Color");
-		buttonLineColor.setFont(new Font("Sans", Font.PLAIN, 11));
+		buttonLineColor.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, getScaledFontSize(baseFontSize)));
 		buttonLineColor.addActionListener(new ActionListener() {
 			
 			public void actionPerformed(ActionEvent e) {
@@ -2000,18 +2051,26 @@ public class Interactive_3D_Surface_Plot implements PlugIn, MouseListener, Mouse
 	
 private JSlider createSliderHorizontal(String borderTitle, int min, int max, int value) {
 		
-		// create nested border
-		Border empty = BorderFactory.createTitledBorder( 
-					   BorderFactory.createEmptyBorder());
-				
-		// create font for sliders
-		Font sliderFont = new Font("Sans", Font.PLAIN, 11);
+		// create font for sliders with DPI scaling
+		Font sliderFont = new Font(Font.SANS_SERIF, Font.PLAIN, getScaledFontSize(baseFontSize));
+		
+		// Calculate proper insets based on font size to ensure text is fully visible
+		int fontHeight = sliderFont.getSize();
+		int topInset = fontHeight + 5; // Extra space for title
+		int sideInset = 3;
+		
+		// Create border with proper spacing
+		Border emptyBorder = BorderFactory.createEmptyBorder(topInset, sideInset, sideInset, sideInset);
+		TitledBorder titledBorder = BorderFactory.createTitledBorder(
+				emptyBorder, 
+				borderTitle, 
+				TitledBorder.CENTER, 
+				TitledBorder.TOP,
+				sliderFont);
 		
 		// create slider
 		JSlider slider = createSliderSafe(JSlider.HORIZONTAL, min, max, value);
-		slider.setBorder(new TitledBorder(
-				empty, borderTitle, TitledBorder.CENTER, 
-				TitledBorder.BELOW_TOP,	sliderFont)); 		
+		slider.setBorder(titledBorder); 		
 
 		slider.addChangeListener(new ChangeListener(){
 			public void stateChanged(ChangeEvent event) {
@@ -2024,18 +2083,26 @@ private JSlider createSliderHorizontal(String borderTitle, int min, int max, int
 
 	private JSlider createSliderVertical(String borderTitle, int min, int max, int value) {
 	
-	// create nested border
-	Border empty = BorderFactory.createTitledBorder( 
-				   BorderFactory.createEmptyBorder());
-			
-	// create font for sliders
-	Font sliderFont = new Font("Sans", Font.PLAIN, 11);
+	// create font for sliders with DPI scaling
+	Font sliderFont = new Font(Font.SANS_SERIF, Font.PLAIN, getScaledFontSize(baseFontSize));
+	
+	// Calculate proper insets based on font size to ensure text is fully visible
+	int fontHeight = sliderFont.getSize();
+	int topInset = fontHeight + 5; // Extra space for title
+	int sideInset = 3;
+	
+	// Create border with proper spacing
+	Border emptyBorder = BorderFactory.createEmptyBorder(topInset, sideInset, sideInset, sideInset);
+	TitledBorder titledBorder = BorderFactory.createTitledBorder(
+			emptyBorder, 
+			borderTitle, 
+			TitledBorder.CENTER, 
+			TitledBorder.TOP,
+			sliderFont);
 	
 	// create slider
 	JSlider slider = createSliderSafe(JSlider.VERTICAL, min, max, value);
-	slider.setBorder(new TitledBorder(
-			empty, borderTitle, TitledBorder.CENTER, 
-			TitledBorder.BELOW_TOP,	sliderFont)); 		
+	slider.setBorder(titledBorder); 		
 
 	slider.addChangeListener(new ChangeListener(){
 		public void stateChanged(ChangeEvent event) {
@@ -2078,14 +2145,29 @@ private JSlider createSliderHorizontal(String borderTitle, int min, int max, int
 
 	
 	private void setSliderTitle(JSlider slider, Color color, String str) {
-		Border empty = BorderFactory.createTitledBorder( 
-					   BorderFactory.createEmptyBorder() );
+		// create font for sliders with DPI scaling
+		Font sliderFont = new Font(Font.SANS_SERIF, Font.PLAIN, getScaledFontSize(baseFontSize));
 		
-		Font sliderFont = new Font("Sans", Font.PLAIN, 11);
+		// Calculate proper insets based on font size to ensure text is fully visible
+		int fontHeight = sliderFont.getSize();
+		int topInset = fontHeight + 5; // Extra space for title
+		int sideInset = 3;
 		
-		slider.setBorder(new TitledBorder(
-				empty, str, TitledBorder.CENTER, 
-				TitledBorder.BELOW_TOP,	sliderFont)); 		
+		// Create border with proper spacing
+		Border emptyBorder = BorderFactory.createEmptyBorder(topInset, sideInset, sideInset, sideInset);
+		TitledBorder titledBorder = BorderFactory.createTitledBorder(
+				emptyBorder, 
+				str, 
+				TitledBorder.CENTER, 
+				TitledBorder.TOP,
+				sliderFont);
+		
+		// Set title color if specified
+		if (color != null) {
+			titledBorder.setTitleColor(color);
+		}
+		
+		slider.setBorder(titledBorder);
 
 		//TitledBorder tb = new TitledBorder(empty,
 		//		"", TitledBorder.CENTER, TitledBorder.TOP,

@@ -209,6 +209,18 @@ public class JRenderer3D {
 	private double xCenter = 0;	// the x, y, and z - coordinates of the rotation center
 	private double yCenter = 0;
 	private double zCenter = 0;
+	
+	// Screen resolution for DPI-aware font sizing
+	private int screenResolution = Toolkit.getDefaultToolkit().getScreenResolution();
+	
+	/**
+	 * Calculate font size based on screen resolution for cross-platform compatibility
+	 * @param baseFontSize The base font size at 72 DPI
+	 * @return Scaled font size appropriate for the current screen resolution
+	 */
+	private int getScaledFontSize(int baseFontSize) {
+		return (int)Math.round(baseFontSize * screenResolution / 72.0);
+	}
 		
 	
 	// objects to be drawn
@@ -594,6 +606,11 @@ public class JRenderer3D {
 	
 	private void finishAndDrawText() {
 		
+		// Guard against null transform - can happen during initialization or resize before rendering
+		if (transform == null) {
+			initBuffer();
+		}
+		
 		// get image from pixels
 		image = Toolkit.getDefaultToolkit().createImage(source);
 		
@@ -685,8 +702,10 @@ public class JRenderer3D {
 						{
 							g2D.setColor(ti.color);
 							int strHeight = (int)(scale*ti.size);
+							// Apply DPI scaling to dynamic font size
+							int scaledStrHeight = (int)Math.round(strHeight * screenResolution / 72.0);
 							
-							font = new Font("Sans", Font.BOLD, strHeight);
+							font = new Font(Font.SANS_SERIF, Font.BOLD, scaledStrHeight);
 							g2D.setFont(font);
 							FontMetrics metrics = g2D.getFontMetrics();
 							int strWidth = metrics.stringWidth(ti.text);
@@ -777,8 +796,10 @@ public class JRenderer3D {
 						if (z < 0)  {
 							g2D.setColor(ti.color);
 							int strHeight = (int)(scale*ti.size);
+							// Apply DPI scaling to dynamic font size
+							int scaledStrHeight = (int)Math.round(strHeight * screenResolution / 72.0);
 							
-							font = new Font("Sans", Font.BOLD, strHeight);
+							font = new Font(Font.SANS_SERIF, Font.BOLD, scaledStrHeight);
 							g2D.setFont(font);
 							FontMetrics metrics = g2D.getFontMetrics();
 							int strWidth = metrics.stringWidth(ti.text);
@@ -818,7 +839,7 @@ public class JRenderer3D {
 				double delta = minStart - minZ;
 
 				g2D.setColor(legendTextColor);
-				font = new Font("Sans", Font.PLAIN, 12);
+				font = new Font(Font.SANS_SERIF, Font.PLAIN, getScaledFontSize(12));
 				g2D.setFont(font);
 				FontMetrics metrics = g2D.getFontMetrics();
 				int stringHeight = 5;
@@ -846,7 +867,7 @@ public class JRenderer3D {
 	}
 	
 	public void showRotation() {
-		Font font = new Font("Sans", Font.PLAIN, 13);
+		Font font = new Font(Font.SANS_SERIF, Font.PLAIN, getScaledFontSize(13));
 		g2D.setFont(font);
 		String str = "Rotation x = " + (int)Math.toDegrees(transform.getRotationX()) + "\u00b0" + ", Rotation z =" + (int)Math.toDegrees(transform.getRotationZ()) + "\u00b0";
 		g2D.drawString(str, 10, 20); 
@@ -935,6 +956,11 @@ public class JRenderer3D {
 	 * Draws all given input data (lines, text, points, cubes, surfaces).
 	 */
 	public void doRendering() {
+		// Ensure buffers and transform are initialized
+		if (transform == null) {
+			initBuffer();
+		}
+		
 		clearBuffers();
 		
 		if (volume != null) {
