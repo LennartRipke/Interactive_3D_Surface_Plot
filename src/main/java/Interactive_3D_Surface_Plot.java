@@ -1441,32 +1441,6 @@ public class Interactive_3D_Surface_Plot implements PlugIn, MouseListener, Mouse
 		imageRegion.addMouseListener(this);
 		imageRegion.addMouseMotionListener(this);
 		
-		// Add mouse wheel listener for scale control
-		imageRegion.addMouseWheelListener(new MouseWheelListener() {
-			@Override
-			public void mouseWheelMoved(MouseWheelEvent e) {
-				int notches = e.getWheelRotation();
-				int currentValue = sliderScale.getValue();
-				int increment = 5; // Adjust sensitivity here
-				
-				// Scroll down (notches > 0) decreases scale, scroll up increases
-				int newValue = currentValue - (notches * increment);
-				
-				// Clamp to slider bounds
-				newValue = Math.max(sliderScale.getMinimum(), Math.min(sliderScale.getMaximum(), newValue));
-				
-				if (newValue != currentValue) {
-					sliderScale.setValue(newValue);
-					scaleSlider = newValue / 100.;
-					String str = "Scale: " + (int)(scaleSlider*100)/100.;
-					setSliderTitle(sliderScale, Color.black, str);
-					double scale = scaleInit * scaleWindow * scaleSlider;
-					jRenderer3D.setTransformScale(scale);
-					renderAndUpdateDisplay();
-				}
-			}
-		});
-
 		imageRegion.addKeyListener ( 			
 				new KeyAdapter() { 
 					private int number;
@@ -1499,6 +1473,31 @@ public class Interactive_3D_Surface_Plot implements PlugIn, MouseListener, Mouse
 		imageRegion.addMouseListener(this);
 		imageRegion.addMouseMotionListener(this);
 		
+		// Add mouse wheel listener for scale control
+		imageRegion.addMouseWheelListener(new MouseWheelListener() {
+			@Override
+			public void mouseWheelMoved(MouseWheelEvent e) {
+				int notches = e.getWheelRotation();
+				int currentValue = sliderScale.getValue();
+				int increment = 5; // Adjust sensitivity here
+				
+				// Scroll down (notches > 0) decreases scale, scroll up increases
+				int newValue = currentValue - (notches * increment);
+				
+				// Clamp to slider bounds
+				newValue = Math.max(sliderScale.getMinimum(), Math.min(sliderScale.getMaximum(), newValue));
+				
+				if (newValue != currentValue) {
+					sliderScale.setValue(newValue);
+					scaleSlider = newValue / 100.;
+					String str = "Scale: " + (int)(scaleSlider*100)/100.;
+					setSliderTitle(sliderScale, Color.black, str);
+					double scale = scaleInit * scaleWindow * scaleSlider;
+					jRenderer3D.setTransformScale(scale);
+					renderAndUpdateDisplay();
+				}
+			}
+		});	
 		imageRegion.addKeyListener ( 			
 				new KeyAdapter() { 
 					private int number;
